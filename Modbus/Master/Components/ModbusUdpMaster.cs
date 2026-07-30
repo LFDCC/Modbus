@@ -1,0 +1,77 @@
+//------------------------------------------------------------------------------
+//  此代码版权（除特别声明或在XREF结尾的命名空间的代码）归作者本人若汝棋茗所有
+//  源代码使用协议遵循本仓库的开源协议及附加协议，若本仓库没有设置，则按MIT开源协议授权
+//  CSDN博客：https://blog.csdn.net/qq_40374647
+//  哔哩哔哩视频：https://space.bilibili.com/94253567
+//  Gitee源代码仓库：https://gitee.com/RRQM_Home
+//  Github源代码仓库：https://github.com/RRQM
+//  API首页：https://touchsocket.net/
+//  交流QQ群：234762506
+//  感谢您的下载和使用
+//------------------------------------------------------------------------------
+
+
+namespace Modbus;
+
+/// <summary>
+/// 基于Udp协议的Modbus
+/// </summary>
+public class ModbusUdpMaster : UdpSessionBase, IModbusUdpMaster
+{
+    private readonly WaitHandlePool<ModbusTcpResponse> m_waitHandlePool;
+
+    /// <summary>
+    /// 基于Udp协议的Modbus
+    /// </summary>
+    public ModbusUdpMaster()
+    {
+        this.Protocol = TouchSocketModbusUtility.ModbusUdp;
+        this.m_waitHandlePool = new WaitHandlePool<ModbusTcpResponse>(0, ushort.MaxValue);
+    }
+
+    /// <summary>
+    /// 获取或设置功能码处理器注册表，默认使用<see cref="ModbusFunctionHandlerRegistry.Default"/>
+    /// </summary>
+    public ModbusFunctionHandlerRegistry FunctionHandlerRegistry { get; } = ModbusFunctionHandlerRegistry.Default;
+
+    /// <inheritdoc/>
+    public async Task<IModbusResponse> SendModbusRequestAsync(IModbusRequest request, CancellationToken cancellationToken)
+    {
+        var waitData = this.m_waitHandlePool.GetWaitDataAsync(out var sign);
+        try
+        {
+            var modbusTcpRequest = new ModbusTcpRequest((ushort)sign, request, this.FunctionHandlerRegistry);
+
+            await this.ProtectedSendAsync(modbusTcpRequest, cancellationToken).ConfigureDefaultAwait();
+
+            var waitDataStatus = await waitData.WaitAsync(cancellationToken).ConfigureDefaultAwait();
+            waitDataStatus.ThrowIfNotRunning();
+
+            var response = waitData.CompletedData;
+            response.Request = request;
+            TouchSocketModbusThrowHelper.ThrowIfNotSuccess(response.ErrorCode);
+            return response;
+        }
+        finally
+        {
+            waitData.Dispose();
+        }
+    }
+
+    /// <inheritdoc/>
+    protected override void LoadConfig(TouchSocketConfig config)
+    {
+        this.SetAdapter(new ModbusUdpAdapter(this.FunctionHandlerRegistry));
+        base.LoadConfig(config);
+    }
+
+    /// <inheritdoc/>
+    protected override async Task OnUdpReceived(UdpReceivedDataEventArgs e)
+    {
+        if (e.RequestInfo is ModbusTcpResponse response)
+        {
+            this.m_waitHandlePool.Set(response);
+        }
+        await base.OnUdpReceived(e).ConfigureDefaultAwait();
+    }
+}
