@@ -13,7 +13,7 @@
 - 主站所有读写方法为扩展方法（`ModbusMasterExtension`），默认超时 1000ms，亦支持按调用传入超时与取消令牌。
 - 从站以「插件」形式挂在 `ModbusTcpSlave` 等宿主上，一个宿主可挂多个站点（`ModbusSlavePoint`），按 `SlaveId` 派发。
 - 数据区 `ModbusDataLocater` 用 `BooleanDataPartition` / `ShortDataPartition` 分块管理线圈/离散输入/保持寄存器/输入寄存器。
-- 内置安全的字节序转换扩展（`SpanMemoryExtension` / `ByteConverterExtension`），基于 BCL `BinaryPrimitives`，规避 `TouchSocketBitConverter.To<T>` 的 AccessViolation 风险。
+- 内置安全的字节序转换扩展（`SpanMemoryExtension` / `ByteConverterExtension`），基于 BCL `BinaryPrimitives`
 
 ## 架构
 
@@ -149,10 +149,6 @@ dotnet run --project examples/Example.ReadHoldingRegisters -c Release
 
 ## 配置（Setup）扩展方法
 
-为减少样板代码，主站与从站都提供了 `SetupAsync(Action<TouchSocketConfig>)` 扩展方法：
-内部自动 `new TouchSocketConfig()` 并把实例交给你在 lambda 中配置，**调用处无需显式引用 `TouchSocketConfig`**。
-另提供了语义等价的 `SetConfig(Action<TouchSocketConfig>)` 别名，按需选用。
-
 ```csharp
 // 从站
 await slave.SetupAsync(config =>
@@ -164,9 +160,6 @@ await slave.SetupAsync(config =>
 // 主站（SetConfig 等价于 SetupAsync）
 await master.SetConfig(config => config.SetRemoteIPHost(new IPHost($"127.0.0.1:{port}")));
 ```
-
-> 若需要完全掌控配置对象，仍可直接调用实例方法 `SetupAsync(TouchSocketConfig)`（二者并存，无歧义：
-> 传 `TouchSocketConfig` 走实例方法，传 lambda 走扩展方法）。
 
 ## 主站读写 API（`ModbusMasterExtension`）
 
@@ -188,8 +181,6 @@ await master.SetConfig(config => config.SetRemoteIPHost(new IPHost($"127.0.0.1:{
 | `ReadWriteMultipleRegistersAsync(slaveId, readStart, readQty, writeStart, ReadOnlyMemory<byte>)` | `IModbusResponse` | 读写多寄存器（FC23） |
 
 ### 字节序与安全转换扩展
-
-Modbus PDU 全部大端。本库提供两个基于 BCL `System.Buffers.Binary.BinaryPrimitives` 的扩展类，**不依赖** `TouchSocketBitConverter.To<T>`（该重载在 TouchSocket 4.2.18 存在 AccessViolation 风险）：
 
 **`SpanMemoryExtension`（读取：字节 → 数值）**
 
@@ -221,9 +212,6 @@ Modbus PDU 全部大端。本库提供两个基于 BCL `System.Buffers.Binary.Bi
 | `ulong.ToMemoryBytes(...)` / `ulong[].ToMemoryBytes(...)` | `ulong` 版本 |
 | `double.ToMemoryBytes(...)` / `double[].ToMemoryBytes(...)` | `double` → 8 字节 |
 | `bool.ToMemoryBytes(...)` | `bool` → 2 字节（线圈值 0xFF00/0x0000） |
-
-> `EndianType` 枚举（来自 TouchSocket）：`Big`（默认，Modbus 标准）、`Little`、`LittleSwap`、`BigSwap`。
-> 16-bit 时 `Big`/`LittleSwap` → 大端；32/64-bit 时四种模式各自独立处理。
 
 使用示例：
 
@@ -303,13 +291,9 @@ slave.SetupAsync(new TouchSocketConfig()
 # 构建（本机离线环境建议加以下两个参数以避免节点复用锁）
 dotnet build Modbus.sln -c Release -p:UseSharedCompilation=false -p:MSBuildEnableNodeReuse=false
 
-# 打包（需要仓库根 LICENSE.txt 与 README.md）
+# 打包
 dotnet pack Modbus/Modbus.csproj -c Release
 ```
-
-> 项目目标框架为 `net6.0;net8.0`（net6.0 已 EOL，构建会出现 `NETSDK1138` 良性警告，已被 `NoWarn` 抑制）。
-> 如需彻底消除该警告，可移除 `net6.0` 目标框架。
-
 ## 许可
 
 [MIT](LICENSE.txt)

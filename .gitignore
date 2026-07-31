@@ -71,8 +71,8 @@ ehthumbs.db
 Desktop.ini
 .DS_Store
 
-# WorkBuddy local state (keep memory logs, exclude temp)
-.workbuddy/temp/
+# WorkBuddy local state (do not commit)
+.workbuddy/
 
 # Temporary scripts
 _transform.py
