@@ -1,28 +1,45 @@
-name: package push
+name: Package Push
 
-# https://acraven.medium.com/a-nuget-package-workflow-using-github-actions-7da8c6557863
+# Workflow for building & publishing the LFDCC.Modbus NuGet package.
+# Triggered by pushing a version tag like v1.0.2.
+# Based on: https://acraven.medium.com/a-nuget-package-workflow-using-github-actions-7da8c6557863
+#
+# NOTE: We pack the library project explicitly (NOT the whole solution),
+# because the example projects are packable by default and would otherwise
+# produce unwanted .nupkg files.
 
 on:
   push:
     tags:
-    - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
 jobs:
   build:
-    # https://github.com/orgs/community/discussions/25253
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-    - name: Checkout
-      uses: actions/checkout@v2
-    - name: Verify commit exists in origin/master
-      run: |
-        git fetch --no-tags --prune origin +refs/heads/master:refs/remotes/origin/master
-        git merge-base --is-ancestor HEAD origin/master
-    - name: Set VERSION variable from tag
-      run: echo "VERSION=${GITHUB_REF/refs\/tags\/v/}" >> $GITHUB_ENV
-    - name: Pack
-      run: dotnet pack --configuration Release /p:Version=${VERSION} --output . ./
-    - name: Push
-      run: dotnet nuget push "*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${NUGET_API_KEY} --skip-duplicate
-      env:
-        NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            6.0.x
+            8.0.x
+
+      - name: Verify commit exists in origin/main
+        run: |
+          git fetch --no-tags --prune origin +refs/heads/main:refs/remotes/origin/main
+          git merge-base --is-ancestor HEAD origin/main
+
+      - name: Set VERSION variable from tag
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> "$GITHUB_ENV"
+
+      - name: Pack
+        run: dotnet pack Modbus/Modbus.csproj -c Release /p:Version=${VERSION} -o artifacts
+
+      - name: Push to NuGet
+        run: dotnet nuget push "artifacts/LFDCC.Modbus.*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${NUGET_API_KEY} --skip-duplicate
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
