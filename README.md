@@ -4,7 +4,7 @@
 
 一套基于 [TouchSocket](https://gitee.com/RRQM_Home/TouchSocket) 实现的原生、全异步 Modbus 客户端/服务端组件。 NuGet 包 ID：`LFDCC.Modbus`。
 
-- **主站（Master，即客户端）**：基于 gitee 开源 TouchSocket.Modbus 源码，由 `ModbusTcpMaster` / `ModbusUdpMaster` / `ModbusRtuMaster` / `ModbusRtuOverTcpMaster` / `ModbusRtuOverUdpMaster` 驱动。
+- **主站（Master，即客户端）**：基于开源 [TouchSocket.Modbus](https://gitee.com/RRQM_Home/TouchSocket) 源码，由 `ModbusTcpMaster` / `ModbusUdpMaster` / `ModbusRtuMaster` / `ModbusRtuOverTcpMaster` / `ModbusRtuOverUdpMaster` 驱动。
 - **从站（Slave，即服务端）**：基于 TouchSocket 原生实现，支持 TCP / UDP / RTU / RTU-over-TCP / RTU-over-UDP 五种传输。
 
 ## 特性
@@ -59,10 +59,6 @@ examples/                    按功能码拆分的独立控制台示例（每个
 ```bash
 dotnet add package LFDCC.Modbus
 ```
-
-> 当前仓库在本机为离线构建环境，已通过 `nuget.config` 的 `fallbackPackageFolders` 指向本地全局缓存。
-> 联网环境下删除该文件（或在其 `<packageSources>` 中加回 `https://api.nuget.org/v3/index.json`）即可恢复联机还原。
-
 ## 快速开始（TCP 主从回环）
 
 完整可运行示例见 [`examples/`](examples/) 目录下按功能码拆分的 9 个控制台项目。以下为最小流程：
@@ -88,8 +84,6 @@ class Program
         dataLocater.Coils.Write(0, new bool[] { true, false, true, false, true });
 
         // 2) 启动 TCP 从站，注册站点（站号 1）
-        //    SetupAsync(Action<TouchSocketConfig>) 扩展方法会在内部 new TouchSocketConfig()，
-        //    调用处无需显式引用 TouchSocketConfig。
         var slave = new ModbusTcpSlave();
         await slave.SetupAsync(config =>
         {
@@ -110,7 +104,6 @@ class Program
 
         // 4) 读保持寄存器（默认 1000ms 超时），响应 Data 为大端字节序列
         var holding = await master.ReadHoldingRegistersAsync(slaveId, 0, 5);
-        //    SpanMemoryExtension.ToUshorts() 基于 BCL BinaryPrimitives，安全无 AV
         Console.WriteLine(string.Join(", ", holding.Data.ToUshorts())); // 11, 22, 33, 44, 55
 
         // 5) 写单寄存器（注意值类型为 short）
